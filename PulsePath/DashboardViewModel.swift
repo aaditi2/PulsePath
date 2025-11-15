@@ -22,17 +22,34 @@ final class DashboardViewModel: ObservableObject {
         motionManager.onDiagnostics = { [weak self] event in
             Task { @MainActor in self?.log(event) }
         }
+
         Task {
             await dataStore.load()
-            await requestPermissions()
-            startStreaming()
+
+            /// Request HealthKit permissions FIRST
+            let granted = await requestPermissions()
+
+            if granted {
+                /// Only start streaming AFTER permissions are granted
+                startStreaming()
+            } else {
+                log(SyncEvent(type: .healthKitAuthorization,
+                              message: "User denied HealthKit permissions"))
+            }
+
             await refreshMetrics()
         }
     }
 
-    func requestPermissions() async {
-        await healthKitManager.requestAuthorization()
+
+    // MARK: Requests
+
+    func requestPermissions() async -> Bool {
+        return await healthKitManager.requestAuthorization()
     }
+
+
+    // MARK: Streaming
 
     func startStreaming() {
         healthKitManager.startHeartRateUpdates()
@@ -44,11 +61,14 @@ final class DashboardViewModel: ObservableObject {
         motionManager.stopUpdates()
     }
 
+    // MARK: Metrics
+
     func refreshMetrics() async {
-        let todayMetrics = await buildDailyMetrics()
-        metrics = todayMetrics
-        await dataStore.save(metrics: todayMetrics)
-        log(SyncEvent(type: .dataPersistence, message: "Persisted metrics for \(todayMetrics.date.formatted(.dateTime.month().day()))"))
+        let today = await buildDailyMetrics()
+        metrics = today
+        await dataStore.save(metrics: today)
+        log(SyncEvent(type: .dataPersistence, message: "Persisted metrics for \(today.date.formatted(.dateTime.month().day()))"))
+
         let history = await dataStore.allMetrics()
         insights = insightGenerator.generateInsights(from: history)
         log(SyncEvent(type: .diagnostics, message: "Generated \(insights.count) insights"))

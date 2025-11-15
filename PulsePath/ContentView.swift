@@ -6,32 +6,33 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    goalSelector
-                    goalProgressSection
-                    heartRateSection
-                    activityTypeSection
-                    insightsSection
-                    diagnosticsSection
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                goalSelector
+                goalProgressSection
+                heartRateSection
+                activityTypeSection
+                insightsSection
+                diagnosticsSection
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("PulsePath")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { Task { await viewModel.refreshMetrics() } }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .accessibilityLabel("Refresh metrics")
+            .padding(.horizontal)
+            .padding(.bottom, 32)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("PulsePath")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { Task { await viewModel.refreshMetrics() } }) {
+                    Image(systemName: "arrow.clockwise")
                 }
             }
         }
-        .task { await viewModel.refreshMetrics() }
+        .task {
+            // App launch work moved OUT of ViewModel.init()
+            await viewModel.requestPermissions()
+            await viewModel.refreshMetrics()
+        }
         .onChange(of: scenePhase) { newPhase in
             switch newPhase {
             case .active:
@@ -44,10 +45,13 @@ struct ContentView: View {
         }
     }
 
+    // MARK: UI Sections
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Today")
                 .font(.largeTitle.bold())
+
             if let heartRate = viewModel.metrics.heartRate {
                 Text("Current heart rate: \(Int(heartRate)) bpm")
                     .font(.headline)
@@ -61,7 +65,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var goalSelector: some View {
@@ -74,8 +78,11 @@ struct ContentView: View {
                         Text(goal.displayName)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
-                            .background(goal == viewModel.activeGoal ? Color.accentColor.opacity(0.2) : Color(.secondarySystemBackground))
-                            .foregroundStyle(goal == viewModel.activeGoal ? Color.accentColor : .primary)
+                            .background(goal == viewModel.activeGoal ?
+                                        Color.accentColor.opacity(0.2) :
+                                        Color(.secondarySystemBackground))
+                            .foregroundStyle(goal == viewModel.activeGoal ?
+                                             Color.accentColor : .primary)
                             .clipShape(Capsule())
                     }
                 }
@@ -93,20 +100,19 @@ struct ContentView: View {
                 GoalProgressRow(goal: goal, metrics: viewModel.metrics)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var heartRateSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Heart Rate")
                 .font(.title3.bold())
+
             if viewModel.metrics.heartRateSamples.isEmpty {
                 Text("No heart rate data yet. Grant Health permissions to begin tracking.")
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
             } else {
                 Chart(viewModel.metrics.heartRateSamples) { sample in
                     LineMark(
@@ -119,17 +125,17 @@ struct ContentView: View {
                 .frame(height: 180)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var activityTypeSection: some View {
-        HStack {
+        HStack(spacing: 16) {
             Image(systemName: "figure.walk")
                 .font(.system(size: 28))
-                .foregroundStyle(.accent)
+                .foregroundStyle(Color.accentColor)
+
             VStack(alignment: .leading) {
                 Text("Current Activity")
                     .font(.headline)
@@ -139,15 +145,15 @@ struct ContentView: View {
             Spacer()
         }
         .padding()
-        .frame(maxWidth: .infinity)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Insights")
                 .font(.title3.bold())
+
             if viewModel.insights.isEmpty {
                 Text("We'll surface trends once we have more data.")
                     .foregroundStyle(.secondary)
@@ -159,52 +165,45 @@ struct ContentView: View {
                         Text(insight.message)
                             .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                     .background(Color(.tertiarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var diagnosticsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Diagnostics")
                 .font(.title3.bold())
-            if viewModel.diagnostics.isEmpty {
-                Text("No sync events yet. We'll record HealthKit and CoreMotion activity here.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(viewModel.diagnostics) { event in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "waveform.path.ecg")
-                            .foregroundStyle(.accent)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.type.rawValue.capitalized)
-                                .font(.headline)
-                            Text(event.message)
-                                .foregroundStyle(.secondary)
-                            Text(event.timestamp.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+
+            ForEach(viewModel.diagnostics) { event in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "waveform.path.ecg")
+                        .foregroundStyle(Color.accentColor)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.type.rawValue.capitalized)
+                            .font(.headline)
+                        Text(event.message)
+                            .foregroundStyle(.secondary)
+                        Text(event.timestamp.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
+                .padding(10)
+                .background(Color(.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -219,19 +218,15 @@ private struct GoalProgressRow: View {
                     .font(.headline)
                 Spacer()
                 Text(goal.formattedValue(metrics.value(for: goal)))
-                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             ProgressView(value: metrics.progress(for: goal))
-                .tint(.accentColor)
+                .tint(Color.accentColor)
+
             Text(String(format: "%.0f%% of goal", metrics.progress(for: goal) * 100))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
-}
-
-#Preview {
-    ContentView()
 }

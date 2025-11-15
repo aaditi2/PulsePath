@@ -11,25 +11,31 @@ final class HealthKitManager: ObservableObject {
 
     var onDiagnostics: ((SyncEvent) -> Void)?
 
-    func requestAuthorization() async {
+    func requestAuthorization() async -> Bool {
         guard HKHealthStore.isHealthDataAvailable() else {
             onDiagnostics?(SyncEvent(type: .healthKitAuthorization, message: "Health data not available"))
-            return
+            return false
         }
 
-        let typesToShare: Set<HKSampleType> = []
         let typesToRead: Set<HKObjectType> = [
-            HKObjectType.quantityType(forIdentifier: .heartRate),
-            HKObjectType.quantityType(forIdentifier: .appleStandTime),
-            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning),
-            HKObjectType.quantityType(forIdentifier: .stepCount)
-        ].compactMap { $0 }
+            HKObjectType.quantityType(forIdentifier: .heartRate)!,
+            HKObjectType.quantityType(forIdentifier: .stepCount)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
+        ]
 
         do {
-            try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
+            try await healthStore.requestAuthorization(
+                toShare: [],
+                read: typesToRead
+            )
+
             onDiagnostics?(SyncEvent(type: .healthKitAuthorization, message: "Authorization successful"))
+            return true
+
         } catch {
-            onDiagnostics?(SyncEvent(type: .healthKitAuthorization, message: "Authorization failed: \(error.localizedDescription)"))
+            onDiagnostics?(SyncEvent(type: .healthKitAuthorization,
+                                     message: "Authorization failed: \(error.localizedDescription)"))
+            return false
         }
     }
 
@@ -51,7 +57,10 @@ final class HealthKitManager: ObservableObject {
                 }
                 return
             }
-            self.handle(samples: samples)
+
+            Task { @MainActor in
+                self.handle(samples: samples)
+            }
         }
 
         query.updateHandler = { [weak self] _, samples, _, _, error in
@@ -62,7 +71,10 @@ final class HealthKitManager: ObservableObject {
                 }
                 return
             }
-            self.handle(samples: samples)
+
+            Task { @MainActor in
+                self.handle(samples: samples)
+            }
         }
 
         healthStore.execute(query)
