@@ -6,20 +6,27 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                goalSelector
-                goalProgressSection
-                heartRateSection
-                activityTypeSection
-                insightsSection
-                diagnosticsSection
+        ZStack(alignment: .top) {
+            LinearGradient(colors: [Color(red: 0.11, green: 0.14, blue: 0.32),
+                                    Color(red: 0.07, green: 0.07, blue: 0.15)],
+                           startPoint: .topLeading,
+                           endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    goalSelector
+                    goalProgressSection
+                    heartRateSection
+                    activityTypeSection
+                    insightsSection
+                    diagnosticsSection
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 32)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle("PulsePath")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -48,24 +55,58 @@ struct ContentView: View {
     // MARK: UI Sections
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Today")
-                .font(.largeTitle.bold())
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("PulsePath")
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.white)
+                    Text("Your daily rhythm, reimagined like Apple's Health experience.")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                Spacer()
+                Image(systemName: "heart.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.white)
+                    .shadow(radius: 8)
+            }
 
-            if let heartRate = viewModel.metrics.heartRate {
-                Text("Current heart rate: \(Int(heartRate)) bpm")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Mindful Readiness")
                     .font(.headline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Waiting for heart rate data…")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.9))
+
+                if let heartRate = viewModel.metrics.heartRate {
+                    Text("Current heart rate: \(Int(heartRate)) bpm")
+                        .font(.title.bold())
+                        .foregroundStyle(.white)
+                } else {
+                    Text("Heart rate requires Apple Watch sensors. With just your iPhone, live BPM isn't available yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+
+            Divider()
+                .overlay(Color.white.opacity(0.3))
+
+            HStack(spacing: 16) {
+                heroStat(icon: "flame.fill", title: "Steps", value: viewModel.metrics.formattedSteps)
+                heroStat(icon: "figure.run.circle.fill", title: "Active", value: viewModel.metrics.formattedActiveMinutes)
+                heroStat(icon: "arrow.triangle.branch", title: "Distance", value: viewModel.metrics.formattedDistance)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(24)
+        .background(
+            LinearGradient(colors: [Color(red: 0.87, green: 0.22, blue: 0.45),
+                                    Color(red: 0.47, green: 0.19, blue: 0.57)],
+                           startPoint: .topLeading,
+                           endPoint: .bottomTrailing)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
     }
 
     private var goalSelector: some View {
@@ -78,12 +119,20 @@ struct ContentView: View {
                         Text(goal.displayName)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
-                            .background(goal == viewModel.activeGoal ?
-                                        Color.accentColor.opacity(0.2) :
-                                        Color(.secondarySystemBackground))
+                            .background(
+                                goal == viewModel.activeGoal ?
+                                    LinearGradient(colors: [.pink.opacity(0.8), .orange.opacity(0.8)],
+                                                   startPoint: .topLeading,
+                                                   endPoint: .bottomTrailing) :
+                                    Color.white.opacity(0.08)
+                            )
                             .foregroundStyle(goal == viewModel.activeGoal ?
-                                             Color.accentColor : .primary)
+                                             Color.white : Color.white.opacity(0.8))
                             .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
                     }
                 }
             }
@@ -92,27 +141,27 @@ struct ContentView: View {
     }
 
     private var goalProgressSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Daily Goals")
-                .font(.title3.bold())
-
+        SectionCard(title: "Daily Goals", subtitle: "Track progress on every pillar of your day.", icon: "target") {
             ForEach(ActivityGoal.allCases) { goal in
                 GoalProgressRow(goal: goal, metrics: viewModel.metrics)
+                    .padding(.vertical, 4)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var heartRateSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Heart Rate")
-                .font(.title3.bold())
-
+        SectionCard(title: "Heart Rate", subtitle: "A calm, cardiology-inspired view.", icon: "waveform.path.ecg") {
             if viewModel.metrics.heartRateSamples.isEmpty {
-                Text("No heart rate data yet. Grant Health permissions to begin tracking.")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("We're standing by for Apple Watch data.")
+                        .font(.headline)
+                    Text("PulsePath mirrors the Health app, but heart rate requires an Apple Watch sensor suite. Using only your iPhone means we can't capture BPM readings yet—connect a watch whenever you're ready.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(Color.red.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 Chart(viewModel.metrics.heartRateSamples) { sample in
                     LineMark(
@@ -120,90 +169,88 @@ struct ContentView: View {
                         y: .value("BPM", sample.bpm)
                     )
                     .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(
+                        LinearGradient(colors: [.red, .pink], startPoint: .leading, endPoint: .trailing)
+                    )
+                    AreaMark(
+                        x: .value("Time", sample.date),
+                        y: .value("BPM", sample.bpm)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(.red.opacity(0.15))
                 }
-                .frame(height: 180)
+                .chartXAxis(.hidden)
+                .chartYAxis { AxisMarks(position: .leading) }
+                .frame(height: 200)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var activityTypeSection: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "figure.walk")
-                .font(.system(size: 28))
-                .foregroundStyle(Color.accentColor)
-
-            VStack(alignment: .leading) {
-                Text("Current Activity")
-                    .font(.headline)
+        SectionCard(title: "Current Activity", subtitle: "Automatically detected by Motion", icon: "figure.run") {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(viewModel.activityType)
-                    .font(.title3.bold())
+                    .font(.title2.bold())
+                Text("Streaming live from your iPhone's motion sensors. Connect an Apple Watch anytime for richer context.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var insightsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Insights")
-                .font(.title3.bold())
-
+        SectionCard(title: "Insights", subtitle: "Thoughtful nudges curated from your metrics.", icon: "sparkles") {
             if viewModel.insights.isEmpty {
                 Text("We'll surface trends once we have more data.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(viewModel.insights) { insight in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(insight.title)
-                            .font(.headline)
-                        Text(insight.message)
-                            .foregroundStyle(.secondary)
+                VStack(spacing: 12) {
+                    ForEach(viewModel.insights) { insight in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(insight.title)
+                                .font(.headline)
+                            Text(insight.message)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
-                    .padding()
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private var diagnosticsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Diagnostics")
-                .font(.title3.bold())
+        SectionCard(title: "Diagnostics", subtitle: "Live system awareness for peace of mind.", icon: "waveform") {
+            if viewModel.diagnostics.isEmpty {
+                Text("No diagnostics to report. Everything looks healthy.")
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.diagnostics) { event in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "waveform.path.ecg")
+                                .foregroundStyle(Color.pink)
 
-            ForEach(viewModel.diagnostics) { event in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "waveform.path.ecg")
-                        .foregroundStyle(Color.accentColor)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(event.type.rawValue.capitalized)
-                            .font(.headline)
-                        Text(event.message)
-                            .foregroundStyle(.secondary)
-                        Text(event.timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.type.rawValue.capitalized)
+                                    .font(.headline)
+                                Text(event.message)
+                                    .foregroundStyle(.secondary)
+                                Text(event.timestamp.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                 }
-                .padding(10)
-                .background(Color(.tertiarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -222,11 +269,86 @@ private struct GoalProgressRow: View {
             }
 
             ProgressView(value: metrics.progress(for: goal))
-                .tint(Color.accentColor)
+                .tint(.pink)
+                .scaleEffect(x: 1, y: 1.4, anchor: .center)
 
             Text(String(format: "%.0f%% of goal", metrics.progress(for: goal) * 100))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private extension DailyMetrics {
+    var formattedSteps: String {
+        ActivityGoal.steps.formattedValue(stepCount)
+    }
+
+    var formattedActiveMinutes: String {
+        ActivityGoal.activeMinutes.formattedValue(activeMinutes)
+    }
+
+    var formattedDistance: String {
+        ActivityGoal.distance.formattedValue(distance)
+    }
+}
+
+private extension ContentView {
+    func heroStat(icon: String, title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: icon)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+            Text(value)
+                .font(.headline)
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    struct SectionCard<Content: View>: View {
+        let title: String
+        var subtitle: String?
+        var icon: String?
+        let content: Content
+
+        init(title: String, subtitle: String? = nil, icon: String? = nil, @ViewBuilder content: () -> Content) {
+            self.title = title
+            self.subtitle = subtitle
+            self.icon = icon
+            self.content = content()
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    if let icon {
+                        Image(systemName: icon)
+                            .font(.headline)
+                            .foregroundStyle(.pink)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.title3.bold())
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                content
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
         }
     }
 }
